@@ -2,10 +2,10 @@ use std::net::SocketAddr;
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use proxy::{build_app, mock_server, Client};
+use proxy::{build_proxy, mock_server, Client};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG").unwrap_or_default(),
@@ -16,12 +16,13 @@ async fn main() {
     tokio::spawn(mock_server());
 
     let client = Client::new();
-    let app = build_app(client).await;
+    let proxy = build_proxy(client).await?;
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 4000));
     println!("reverse proxy listening on {}", addr);
     axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+        .serve(proxy.into_make_service())
         .await
         .unwrap();
+    Ok(())
 }

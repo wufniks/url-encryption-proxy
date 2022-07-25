@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "gateway",
+  "proxy",
+]
+
+[patch.crates-io]
+tower-http = { git = "https://github.com/lilyball/tower-http.git", branch = "gateway" }
