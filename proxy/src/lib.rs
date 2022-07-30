@@ -1,12 +1,17 @@
 mod error;
 mod proxy;
+mod shield;
 
 use std::net::SocketAddr;
 
 use axum::{body::Body, extract::Path, routing::get, Router};
 use hyper::{client::HttpConnector, Request};
 
-pub use self::{error::Error, proxy::build_proxy};
+pub use self::{
+    error::Error,
+    proxy::build_proxy,
+    shield::{Shield, ShieldLayer},
+};
 
 pub type Client = hyper::client::Client<HttpConnector, Body>;
 
