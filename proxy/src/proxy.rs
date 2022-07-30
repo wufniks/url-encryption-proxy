@@ -1,24 +1,34 @@
 use std::str::FromStr;
 
-use axum::middleware::{from_fn, Next};
-use axum::response::IntoResponse;
-use axum::{error_handling::HandleError, Router};
+use axum::{
+    error_handling::HandleError,
+    extract::Path,
+    middleware::{from_fn, Next},
+    response::IntoResponse,
+    routing::any,
+    Router,
+};
 use http::{Request, StatusCode, Uri};
 use hyper::{client::HttpConnector, Body};
-use tower_http::gateway::Gateway;
+use tower::ServiceBuilder;
+use tower_http::{gateway::Gateway, trace::TraceLayer};
+use tower_service::Service;
 
 use crate::Error;
 
 pub type Client = hyper::client::Client<HttpConnector, Body>;
 
 pub async fn build_proxy(client: Client) -> Result<Router, Error> {
-    let gateway = Gateway::new(client, Uri::from_static("http://127.0.0.1:3000"))?;
-    let router = Router::new()
-        .route(
-            "/",
-            HandleError::new(gateway, |_| async { StatusCode::BAD_GATEWAY }),
-        )
-        .layer(from_fn(shield));
+    let mut gateway = Gateway::new(client, Uri::from_static("http://127.0.0.1:3000"))?;
+    let handler = |Path(path): Path<String>, req: Request<Body>| async move {
+        tracing::info!(?path, "handler");
+        gateway.call(req).await.map_err(|_| StatusCode::BAD_GATEWAY)
+    };
+    let router = Router::new().route("/*path", any(handler)).layer(
+        ServiceBuilder::new()
+            .layer(TraceLayer::new_for_http())
+            .layer(from_fn(shield)),
+    );
     Ok(router)
 }
 
