@@ -1,4 +1,3 @@
-use http;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
