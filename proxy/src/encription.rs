@@ -4,7 +4,6 @@ use std::sync::Arc;
 use axum::BoxError;
 use axum::{body::Body, http::Request};
 use futures::future::BoxFuture;
-
 use http::Uri;
 use tokio::sync::Mutex;
 use tower::filter::AsyncPredicate;
