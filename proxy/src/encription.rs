@@ -34,17 +34,21 @@ impl AsyncPredicate<Request<Body>> for Encript {
             .as_ref()
             .map(|path_and_query| path_and_query.path().to_owned())
         {
-            tracing::debug!("found the matching path");
             Box::pin(async move {
-                let protected_path = cache.lock().await.get(&path).and_then(|s| s.parse().ok());
-                parts.path_and_query = protected_path;
-                if let Ok(protected_uri) = Uri::from_parts(parts) {
-                    *req.uri_mut() = protected_uri;
+                tracing::debug!(?path, "query");
+                if let Some(protected_path) =
+                    cache.lock().await.get(&path).and_then(|s| s.parse().ok())
+                {
+                    parts.path_and_query = Some(protected_path);
+                    if let Ok(protected_uri) = Uri::from_parts(parts) {
+                        tracing::debug!(?protected_uri, "found the matching path");
+                        *req.uri_mut() = protected_uri;
+                    }
                 }
                 Ok(req)
             })
         } else {
-            tracing::debug!("couldn't find the matching path");
+            tracing::debug!("failed to parse path");
             Box::pin(futures::future::ready(Ok(req)))
         }
     }
