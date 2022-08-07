@@ -7,7 +7,7 @@ use bytes::{BufMut, BytesMut};
 use http::{Request, StatusCode, Uri};
 use hyper::{client::HttpConnector, Body};
 use tokio::sync::Mutex;
-use tower::ServiceBuilder;
+use tower::{ServiceBuilder, ServiceExt};
 use tower_http::{gateway::Gateway, trace::TraceLayer};
 use tower_service::Service;
 
@@ -22,22 +22,42 @@ pub async fn build_proxy(client: Client) -> Result<Router, Error> {
         gateway.call(req).await.map_err(|_| StatusCode::BAD_GATEWAY)
     };
     let cache = Arc::new(Mutex::new(HashMap::new()));
-    let url_encrypt = Encrypt::new(cache.clone());
-    let insert_url = move |request: Request<Body>, next: Next<Body>| {
+
+    let encrypt_handler = {
         let cache = Arc::clone(&cache);
+        move |original: String| {
+            let cache = Arc::clone(&cache);
+            async move {
+                let encrypted: String = original.strip_prefix('/').unwrap().chars().rev().collect();
+                let encrypted = format!("/{}", encrypted);
+                {
+                    let mut guard = cache.lock().await;
+                    guard.insert(encrypted.clone(), original.clone());
+                    tracing::info!("added {} -> {}", encrypted, original);
+                }
+                Result::<String, BoxError>::Ok(encrypted)
+            }
+        }
+    };
+    let encrypt = tower::service_fn(encrypt_handler);
+
+    let url_encrypt = Encrypt::new(Arc::clone(&cache));
+    let insert_url = move |request: Request<Body>, next: Next<Body>| {
+        let mut encrypt = encrypt.clone();
         async move {
             let res = next.run(request).await;
             let (_parts, body) = res.into_parts();
             let mut buf = BytesMut::new();
             let original = hyper::body::to_bytes(body).await.unwrap();
             buf.put(original);
-            let original_path = "/original-path".to_owned();
-            let encrypted_path = "/encrypted-path".to_owned();
-            {
-                let mut guard = cache.lock().await;
-                guard.insert(encrypted_path.clone(), original_path.clone());
-                tracing::info!("added {} -> {}", original_path, encrypted_path);
-            }
+            let encrypted_path = encrypt
+                .ready()
+                .await
+                .unwrap()
+                .call("/original-path".to_owned())
+                .await
+                .unwrap();
+
             write!(buf, "http://localhost{encrypted_path}").unwrap();
             buf.freeze()
         }
