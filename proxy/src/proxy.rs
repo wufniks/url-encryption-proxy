@@ -39,27 +39,31 @@ pub async fn build_proxy(client: Client) -> Result<Router, Error> {
             }
         }
     };
-    let encrypt = tower::service_fn(encrypt_handler);
+    let mut encrypt = tower::service_fn(encrypt_handler);
+
+    let modify_html = |body| async move {
+        let mut buf = BytesMut::new();
+        buf.put(body);
+        let encrypted_path = encrypt
+            .ready()
+            .await
+            .unwrap()
+            .call("/original-path".to_owned())
+            .await
+            .unwrap();
+
+        write!(buf, "http://localhost{encrypted_path}").unwrap();
+        buf.freeze()
+    };
 
     let url_encrypt = Encrypt::new(Arc::clone(&cache));
     let insert_url = move |request: Request<Body>, next: Next<Body>| {
-        let mut encrypt = encrypt.clone();
+        let modify_html = modify_html.clone();
         async move {
             let res = next.run(request).await;
             let (_parts, body) = res.into_parts();
-            let mut buf = BytesMut::new();
             let original = hyper::body::to_bytes(body).await.unwrap();
-            buf.put(original);
-            let encrypted_path = encrypt
-                .ready()
-                .await
-                .unwrap()
-                .call("/original-path".to_owned())
-                .await
-                .unwrap();
-
-            write!(buf, "http://localhost{encrypted_path}").unwrap();
-            buf.freeze()
+            modify_html(original).await
         }
     };
 
