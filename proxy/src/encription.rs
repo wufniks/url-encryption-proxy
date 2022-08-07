@@ -9,11 +9,11 @@ use tokio::sync::Mutex;
 use tower::filter::AsyncPredicate;
 
 #[derive(Clone)]
-pub struct Encript {
+pub struct Encrypt {
     cache: Arc<Mutex<HashMap<String, String>>>,
 }
 
-impl Encript {
+impl Encrypt {
     pub fn new(cache: Arc<Mutex<HashMap<String, String>>>) -> Self {
         Self {
             cache,
@@ -22,7 +22,7 @@ impl Encript {
     }
 }
 
-impl AsyncPredicate<Request<Body>> for Encript {
+impl AsyncPredicate<Request<Body>> for Encrypt {
     type Future = BoxFuture<'static, Result<Self::Request, BoxError>>;
     type Request = Request<Body>;
     fn check(&mut self, mut req: Request<Body>) -> Self::Future {

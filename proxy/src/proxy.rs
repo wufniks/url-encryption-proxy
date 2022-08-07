@@ -11,7 +11,7 @@ use tower::ServiceBuilder;
 use tower_http::{gateway::Gateway, trace::TraceLayer};
 use tower_service::Service;
 
-use crate::{Encript, Error};
+use crate::{Encrypt, Error};
 
 pub type Client = hyper::client::Client<HttpConnector, Body>;
 
@@ -22,7 +22,7 @@ pub async fn build_proxy(client: Client) -> Result<Router, Error> {
         gateway.call(req).await.map_err(|_| StatusCode::BAD_GATEWAY)
     };
     let cache = Arc::new(Mutex::new(HashMap::new()));
-    let url_encript = Encript::new(cache.clone());
+    let url_encrypt = Encrypt::new(cache.clone());
     let insert_url = move |request: Request<Body>, next: Next<Body>| {
         let cache = Arc::clone(&cache);
         async move {
@@ -51,7 +51,7 @@ pub async fn build_proxy(client: Client) -> Result<Router, Error> {
                     .layer(HandleErrorLayer::new(handle_boxed_error))
                     // NOTE: 엄밀히 filter가 주 목적이 아니지만, request를 async하게 변조해 줄 수 있는
                     // 가장 간단한 방법이라 생각해서 이렇게 처리함.
-                    .filter_async(url_encript),
+                    .filter_async(url_encrypt),
             )
             .layer(from_fn(insert_url)),
     );

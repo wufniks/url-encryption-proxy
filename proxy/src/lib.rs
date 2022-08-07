@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use axum::{body::Body, extract::Path, routing::get, Router};
 use hyper::{client::HttpConnector, Request};
 
-pub use self::{encription::Encript, error::Error, proxy::build_proxy};
+pub use self::{encription::Encrypt, error::Error, proxy::build_proxy};
 
 pub type Client = hyper::client::Client<HttpConnector, Body>;
 
